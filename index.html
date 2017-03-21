@@ -1,0 +1,862 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width, 
+    user-scalable=no, initial-scale=1, maximum-scale=1, user-scalable=0" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+<style>
+
+
+
+body { margin: 0; padding: 0; background: #3B7BE2;}
+#canvas {
+display: block; margin: 0 auto; transform: translate3d(0,0,0);
+-webkit-transform: translate3d(0,0,0);
+visibility:hidden;
+}
+
+
+#label{
+	text-align: center;
+	vertical-align:middle;
+	color:#fff;
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left:0;
+	right:0;
+	margin: auto;
+	width:50%;
+	height: 10%;
+	font-family: Arial;
+	font-weight: bold;
+	font-size:7vw;
+}
+
+</style>
+</head>
+<body onload='onload()'>
+<div id="label"><div id="labelLoading">Loading</div></div>
+<!-- Lets make a bouncing ball in canvas using simple physics -->
+<canvas id="canvas" ></canvas>
+
+<script>
+var canvas = document.getElementById("canvas"),
+ctx = canvas.getContext("2d");
+var W = 320,H = 480;
+var POP = {
+    WIDTH: W, 
+    HEIGHT:  H, 
+    RATIO:  null,
+    currentWidth:  null,
+    currentHeight:  null,
+    canvas: null,
+    ctx:  null,
+    init: function() {
+          // the proportion of width to height
+        POP.RATIO = POP.WIDTH / POP.HEIGHT;
+        // these will change when the screen is resize
+        POP.currentWidth = POP.WIDTH;
+        POP.currentHeight = POP.HEIGHT;
+        // this is our canvas element
+        POP.canvas = document.getElementsByTagName('canvas')[0];
+        // it's important to set this
+        // otherwise the browser will
+        // default to 320x200
+        POP.canvas.width = POP.WIDTH;
+        POP.canvas.height = POP.HEIGHT;
+        // the canvas context allows us to 
+        // interact with the canvas api
+        POP.ctx = POP.canvas.getContext('2d');
+        // we need to sniff out android & ios
+        // so we can hide the address bar in
+        // our resize function
+        POP.ua = navigator.userAgent.toLowerCase();
+        POP.android = POP.ua.indexOf('android') > -1 ? true : false;
+        POP.ios = ( POP.ua.indexOf('iphone') > -1 || POP.ua.indexOf('ipad') > -1  ) ? true : false;
+        POP.resize();
+    },
+    resize: function() {
+        POP.currentHeight = window.innerHeight;
+       // POP.currentWidth = POP.currentHeight * POP.RATIO;
+	   if((window.innerHeight*0.9)>window.innerWidth){
+			POP.currentWidth = window.innerWidth;
+		}
+		else{
+			POP.currentWidth = POP.currentHeight * POP.RATIO;
+		}
+        if (POP.android || POP.ios) {
+            document.body.style.height = (window.innerHeight + 50) + 'px';
+        }
+		
+        POP.canvas.style.width = POP.currentWidth + 'px';
+        POP.canvas.style.height = POP.currentHeight + 'px';
+        POP.scaleW = POP.currentWidth / POP.WIDTH;
+        POP.scaleH = POP.currentHeight / POP.HEIGHT;
+		POP.canvas.style.visibility = 'visible';
+       POP.offset.top = POP.canvas.offsetTop;
+        POP.offset.left = POP.canvas.offsetLeft;
+
+        window.setTimeout(function() {
+                window.scrollTo(0,1);
+        }, 1);
+		
+    }
+
+};
+
+var imageBall;
+var imageTitle;
+var imageGameOver;
+var imageHighScore;
+var imageScore;
+var imageStart;
+var imageRetry;
+var imageTutorial;
+var imageSkyBg;
+var imageSeaBg;
+var imageBeachBg;
+var gameOverAudio;
+var failedAudio;
+var bounceAudio;
+var seaAudio;
+
+
+var highScore = 0;
+var firstTime = 1;
+function onload(){
+	 imageBall = new Image();
+	imageBall.src = 'ball.png';
+	 imageTitle = new Image();
+	imageTitle.src = 'title.png';
+	 imageGameOver = new Image();
+	imageGameOver.src = 'gameover.png';
+	 imageHighScore = new Image();
+	imageHighScore.src = 'highscore.png';
+	 imageScore = new Image();
+	imageScore.src = 'score.png';
+	 imageStart = new Image();
+	imageStart.src = 'start.png';
+	 imageRetry = new Image();
+	imageRetry.src = 'retry.png';
+	 imageTutorial = new Image();
+	imageTutorial.src = 'tutorial.png';
+	 imageSkyBg = new Image();
+	imageSkyBg.src = 'sky.jpg';
+	 imageSeaBg = new Image();
+	imageSeaBg.src = 'sea.jpg';
+	 imageBeachBg = new Image();
+	imageBeachBg.src = 'beach.png';
+	 gameOverAudio = new Audio("sounds/gameover.mp3");
+	 failedAudio = new Audio("sounds/failed.ogg");
+	 bounceAudio = new Audio("sounds/hit.mp3");
+	 seaAudio = new Audio("sounds/sea.mp3");
+	gameOverAudio.loop = false;
+	gameOverAudio.volume = 1.5;
+	gameOverAudio.load();
+	failedAudio.loop = false;
+	failedAudio.volume = 1.5;
+	failedAudio.load();
+	bounceAudio.loop = false;
+	bounceAudio.volume = 1.5;
+	bounceAudio.load();
+	seaAudio.loop = true;
+	seaAudio.volume = 1;
+	seaAudio.load();
+	
+	
+	if (typeof(Storage) !== "undefined") {
+		if(localStorage.getItem("highScore")!=null){  
+			highScore=localStorage.getItem("highScore");
+		}
+		if(localStorage.getItem("firstTime")!=null){  
+			firstTime = 0;
+		}
+	}
+	
+	if(POP.android)	{
+		AndAud.playAudio("sounds/sea.mp3");
+	}else{
+		seaAudio.play();
+	}
+}
+  
+var hold = 0;
+  document.addEventListener('keydown', function(ev) { return onkeydown(ev, ev.keyCode);  }, false);
+  document.addEventListener('keyup',   function(ev) { return onkeyup(ev, ev.keyCode); }, false);
+
+  function onkeydown(ev, key) {
+    switch(key) {
+      case 37:  
+			ball.vx=-maxVector; 
+			ev.preventDefault(); 
+			hold =1 ;
+			break;
+      case 39:  
+			ball.vx=maxVector; 
+			hold =1 ;
+			 ev.preventDefault(); break;
+      case 32:  alert("space"); ev.preventDefault(); break;
+    }
+  }
+  
+ function onkeyup(ev, key) {
+    switch(key) {
+      case 37:  
+		//	ball.vx=0; 
+			ev.preventDefault(); 
+			hold =0 ;
+			break;
+      case 39:  
+		//	ball.vx=0; 
+			hold =0 ;
+			ev.preventDefault(); 
+			break;
+      case 32:  alert("space"); ev.preventDefault(); break;
+    }
+  }
+// Now setting the width and height of the 
+
+
+window.addEventListener('load', POP.init, false);
+window.addEventListener('resize', POP.resize, false);
+// Applying these to the canvas element
+//canvas.height = H; canvas.width = W;
+
+
+var goLeft=0,goRight=0;
+
+
+canvas.addEventListener("touchstart",doTouchStart,false);
+canvas.addEventListener("touchend",doTouchEnd,false);
+
+function doTouchStart(event){
+	var x = event.touches[0].clientX- canvas.offsetLeft;
+	x=x/POP.scaleW;
+	var y = event.touches[0].clientY - canvas.offsetTop;
+	y=y/POP.scaleH;
+	if(startGame>=2){
+		if(x<(W/2)){
+			ball.vx=-maxVector; 
+			hold =1 ;
+			goLeft=1;
+		}else{
+			ball.vx=maxVector; 
+			hold =1 ;
+			goRight=1;
+		}
+	}
+
+	restartBtn.click(x,y);
+	startBtn.click(x,y);
+	event.preventDefault();
+}
+
+
+function doTouchEnd(event){
+	hold=0;
+	event.preventDefault();
+}
+
+canvas.onmousedown = function(e) {
+if(!POP.android&&!POP.ios){
+var x = e.pageX - canvas.offsetLeft;
+x=x/POP.scaleW;
+var y = e.pageY - canvas.offsetTop;
+y=y/POP.scaleH;
+if(startGame>=2){
+	if(x<(W/2)){
+		ball.vx=-maxVector; 
+		hold =1 ;
+		goLeft=1;
+	}else{
+		ball.vx=maxVector; 
+		hold =1 ;
+		goRight=1;
+	}
+}
+	restartBtn.click(x,y);
+	startBtn.click(x,y);
+}
+	event.preventDefault();
+}
+canvas.onmouseup = function(e) {
+if(!POP.android&&!POP.ios){
+		hold =0 ;
+}
+	event.preventDefault();
+}
+
+
+
+var gravity = 0.4,
+	moveAcc = 0.6,
+	maxVector = 5;
+	bounceFactor = 0.958;
+	
+var ball = {
+	x: W/2,
+	y: 100,
+	radius: 11,
+	color: "red",
+	// Velocity components
+	vx: 0,
+	vy: 1,
+	
+	draw: function() {
+		// Here, we'll first begin drawing the path and then use the arc() function to draw the circle. The arc function accepts 6 parameters, x position, y position, radius, start angle, end angle and a boolean for anti-clockwise direction.
+		
+		ctx.drawImage(imageBall, this.x-this.radius, this.y-this.radius,this.radius*2,this.radius*2);
+		
+		// Now, lets make the ball move by adding the velocity vectors to its position
+		ball.y += ball.vy;
+		ball.vy += gravity;
+		ball.x += ball.vx;
+		
+		//on hold accelerate, on up decelerate
+		if(ball.vx!=0&&hold==1){
+			ball.vx += (ball.vx<0?(moveAcc*-1):moveAcc);
+			if(ball.vx>maxVector||ball.vx<-maxVector){
+				ball.vx = (ball.vx<0)?maxVector*(-1):maxVector;
+			}
+		}
+		if(hold==0&&ball.vx!=0){
+			ball.vx -=((ball.vx<0?(moveAcc*-1):moveAcc)*0.4);
+		}
+		
+		//limit
+		if(hold == 1){
+		if((ball.x+ball.radius)>=W){
+			ball.x = W-ball.radius;
+			}
+		if((ball.x-ball.radius) <= 0){
+			ball.x = ball.radius;
+			}
+		}else{
+			if(ball.x+ball.radius>=W){
+				ball.x=W-ball.radius;
+				ball.vx=ball.vx*(-0.5);
+			}
+			if((ball.x-ball.radius) <= 0){
+				ball.x=ball.radius;
+				ball.vx=ball.vx*(-0.5);
+			}
+		}
+		if(ball.y < 100){
+			ball.y = 100;
+		}
+	}
+};
+
+var restartBtn = {	
+	alpha:0.0,
+	delta:1,
+	w:100,
+	h:40,
+	x:W/2-50,
+	y:H/2-25,
+	draw: function() {
+			ctx.fillStyle = 'rgba(0, 0, 0, ' + this.alpha + ')';
+			//ctx.fillRect(this.x,this.y,this.w,this.h);
+			ctx.drawImage(imageRetry, this.x,this.y,this.w,this.h);
+	},
+	fadeIn: function(){
+		if(restartBtn.alpha<restartBtn.delta){
+			restartBtn.alpha=restartBtn.alpha+0.01;
+		}else{
+			restartBtn.alpha=restartBtn.delta;
+		}
+		restartBtn.draw();
+	},
+	click: function(x,y){
+		if(restartBtn.alpha>0){
+			if((restartBtn.x<=x)&&((restartBtn.x+restartBtn.w)>=x)&&
+			(restartBtn.y<=y)&&((restartBtn.y+restartBtn.h)>=y)){
+				restart();
+				restartBtn.alpha=0;
+			}
+		}
+	}
+};
+
+var startBtn = {	
+alpha:0.0,
+	delta:1,
+	w:100,
+	h:40,
+	x:W/2-50,
+	y:H/2-25,
+	draw: function() {
+			ctx.fillStyle = 'rgba(0, 0, 0, ' + this.alpha + ')';
+			//ctx.fillRect(this.x,this.y,this.w,this.h);
+			ctx.drawImage(imageStart, this.x,this.y,this.w,this.h);
+	},
+	fadeIn: function(){
+		if(startBtn.alpha<startBtn.delta){
+			startBtn.alpha=startBtn.alpha+0.01;
+		}else{
+			startBtn.alpha=startBtn.delta;
+		}
+		startBtn.draw();
+	},
+	click: function(x,y){
+		if(startBtn.alpha>0){
+			if((startBtn.x<=x)&&((startBtn.x+startBtn.w)>=x)&&
+			(startBtn.y<=y)&&((startBtn.y+startBtn.h)>=y)){
+				start();
+				startBtn.alpha=0;
+			}
+		}
+	}
+};
+
+
+function drawText(text,x,y){
+			ctx.textAlign="center";
+			ctx.font = " 40px Arial";
+			ctx.textAlign="center"; 
+			ctx.lineWidth = 6
+			ctx.strokeText(text,x,y);
+			ctx.fillStyle = '#FFE5AA';
+			ctx.fillText(text,x,y);
+}
+
+var shadow = {
+	alpha:0.0,
+	delta:0.6,
+	
+	draw: function() {
+			ctx.fillStyle = 'rgba(0, 0, 0, ' + this.alpha + ')';
+			ctx.fillRect(0,0,W,H);
+			ctx.drawImage(imageHighScore, W/2-85,startBtn.y+startBtn.h+20,170,30);
+			ctx.drawImage(imageTitle, W/2-140,60,280,60);
+			drawText(highScore,W/2,startBtn.y+startBtn.h+90);
+			if(score!=0){
+				ctx.drawImage(imageScore, W/2-85,startBtn.y+startBtn.h+100,170,30);
+				drawText(score,W/2,startBtn.y+startBtn.h+startBtn.h+startBtn.h+90);
+				ctx.drawImage(imageGameOver, W/2-110,130,220,45);
+			}
+	},
+	fadeIn: function(value){
+		if(shadow.alpha<value){
+			shadow.alpha=shadow.alpha+0.01;
+		}else{
+			shadow.alpha=value;
+		}
+		shadow.draw();
+	},
+	fadeOut: function(){
+		if(shadow.alpha>0){
+			shadow.alpha=shadow.alpha-0.01;
+			shadow.draw();
+		}else{
+			shadow.alpha=0;
+		}
+	}
+};
+
+var score = 0;
+var floorY = H-80;
+var floorGap = (0.030*W)/9.0;
+var floorHeight = 80;
+var floorWidth = (W-(W*0.030))/8.0;
+var floorColor = "blue";
+var floorDelay = 5;
+var floor0 ={
+	visible:0,
+	y:floorY,
+	drop:1,
+	x:0,
+	dropDelay:floorDelay,
+	riseDelay:floorDelay
+};
+var floor1 ={
+	visible:0,
+	y:floorY,
+	drop:1,
+	x:0,
+	dropDelay:floorDelay,
+	riseDelay:floorDelay
+};
+var floor2 ={
+	visible:0,
+	y:floorY,
+	drop:1,
+	x:0,
+	dropDelay:floorDelay,
+	riseDelay:floorDelay
+};
+var floor3 ={
+	visible:0,
+	y:floorY,
+	drop:1,
+	x:0,
+	dropDelay:floorDelay,
+	riseDelay:floorDelay
+};
+var floor4 ={
+	visible:0,
+	y:floorY,
+	drop:1,
+	x:0,
+	dropDelay:floorDelay,
+	riseDelay:floorDelay
+};
+var floor5 ={
+	visible:0,
+	y:floorY,
+	drop:1,
+	x:0,
+	dropDelay:floorDelay,
+	riseDelay:floorDelay
+};
+var floor6 ={
+	visible:0,
+	y:floorY,
+	drop:1,
+	x:0,
+	dropDelay:floorDelay,
+	riseDelay:floorDelay
+};
+var floor7 ={
+	visible:0,
+	y:floorY,
+	drop:1,
+	x:0,
+	dropDelay:floorDelay,
+	riseDelay:floorDelay
+};
+
+var floors = [floor0,floor1,floor2,floor3,floor4,floor5,floor6,floor7]; 
+function drawFloor() {
+	for( index=0;index<8;index++)
+	{
+		if(floors[index].visible==1){
+			var x = floorGap + (index*(floorGap+floorWidth));
+			floors[index].x = x;
+			
+			/*
+			ctx.fillStyle = floorColor;
+			ctx.fillRect(x,floors[index].y,floorWidth,floorHeight);
+			*/
+			var imageFloor = new Image();
+			imageFloor.src = 'floor.png';
+			ctx.drawImage(imageFloor,x,floors[index].y,floorWidth,floorHeight)
+		}
+	}
+}
+
+function dropFloor(index) {
+if(floors[index].riseDelay ==0){
+	floors[index].drop = 1 ;
+	}else{
+	//dropRiseFloor();
+	}
+}
+function riseFloor(index) {
+if(floors[index].dropDelay ==0){
+	floors[index].drop = 0 ;
+	floors[index].visible = 1;
+	floors[index].y = H;}
+	else{
+		dropRiseFloor();
+	}
+}
+function updateFloor() {
+	//var drop = Math.round(Math.random()*7);
+	for(var index=0;index<floors.length;index++){
+		if(floors[index].drop==1){
+			floors[index].y = floors[index].y +	5 ;
+			if(floors[index].y>=H){
+				floors[index].y = H;
+				floors[index].visible = 0;
+					floors[index].riseDelay = floorDelay;
+			}
+		}else{
+			if(floors[index].y>floorY){
+				floors[index].y = floors[index].y -3;
+				if(floors[index].y<=floorY){
+					floors[index].y = floorY;
+					floors[index].dropDelay = floorDelay;
+				}
+			}
+		}
+	}
+}
+
+
+var startGame=0;
+function dropRiseFloor() {
+	if(startGame==1){
+		for(var index=0;index<floors.length;index++){
+			floors[index].dropDelay=0;
+			if(floors[index].drop==1)
+				riseFloor(index);
+		}
+	}
+	if(startGame==3){
+		var prob = Math.round(Math.random()*7);
+		var count=0;
+		for(var index=0;index<floors.length;index++){
+			if(floors[index].dropDelay>0&&floors[index].drop==1)
+				floors[index].dropDelay = floors[index].dropDelay-1;
+			if(floors[index].riseDelay>0&&floors[index].drop==0)
+				floors[index].riseDelay = floors[index].riseDelay-1;
+			
+			if(floors[index].drop==0){
+				count++;
+			}
+		}
+		var drop = Math.round(Math.random()*7);
+		//var drop = 0;
+			
+			if(count>=6){
+				dropFloor(drop);
+				if(prob<3){
+					dropFloor(Math.round(Math.random()*7));
+				}
+			}else{
+				if(count>=3){
+					if(prob<2){
+						riseFloor(drop);
+						if(prob<2){
+							riseFloor(Math.round(Math.random()*7));
+						}
+					}else{
+						dropFloor(drop);
+						if(prob>5&&count==3){
+							dropFloor(Math.round(Math.random()*7));
+						}
+					}
+				}else{
+						riseFloor(drop);
+				}
+			}
+		}
+}
+// When we do animations in canvas, we have to repaint the whole canvas in each frame. Either clear the whole area or paint it with some color. This helps in keeping the area clean without any repetition mess.
+// So, lets create a function that will do it for us.
+function clearCanvas() {
+	ctx.clearRect(0, 0, W, H);
+}
+
+var sky= {
+	x:0,
+	y:0,
+	W:1700,
+	h:200,
+	move: function(){
+		sky.x= sky.x-0.7;
+		if(sky.x<=-1200){
+			sky.x=0;
+		}
+	}	
+}
+var sea= {
+	x:0,
+	y:sky.h,
+	W:1700,
+	h:300,
+	move: function(){
+		sea.x= sea.x-0.2;
+		if(sea.x<=-1200){
+			sea.x=0;
+		}
+	}	
+}
+var beach= {
+	x:0,
+	y:sea.y+150,
+	W:400,
+	h:150,
+}
+function drawBackground(){
+	ctx.drawImage(imageSkyBg,sky.x,sky.y);
+	ctx.drawImage(imageSeaBg,sea.x,sea.y);
+	ctx.drawImage(imageBeachBg,beach.x,beach.y);
+	sky.move();
+	sea.move();
+}
+
+var counter=0;
+var floorChangeDelay=24;
+//var timer = setInterval(update, 1000/60);
+// A function that will update the position of the ball is also needed. Lets create one
+var loadingCounter = 0;
+var loadingDelay = 25;
+var timer = setInterval(update, 1000/60);
+function update() {
+		/*
+		if(POP.canvas.style.display != 'block'){
+			loadingCounter++;
+			if(loadingCounter%loadingDelay==0){
+				if(loadingCounter==loadingDelay*4){
+					document.getElementById("labelLoading").innerHTML  ="Loading";
+					loadingCounter=0;
+				}else{
+					document.getElementById("labelLoading").innerHTML  ="&nbsp;"+document.getElementById("labelLoading").innerHTML +".";
+				}
+			}
+		}else{
+		*/
+		//requestAnimationFrame(update);
+		
+		clearCanvas();
+		counter++;
+		if(counter==floorChangeDelay){
+			dropRiseFloor();
+			counter=0;
+		}
+		drawBackground();
+		updateFloor();
+		drawFloor();
+	if(startGame==2||startGame==3||(startGame==1&&floor0.y==floorY)){
+		
+	if(ball.y<H){
+		ball.draw();
+		if(ball.y + ball.radius >= floorY) {
+			var pass = validate();
+			if(pass == 1) {
+				drawScore();
+				
+				if((goLeft==0||goRight==0)&&firstTime==1){
+					startGame=2;
+					drawTutorial();
+				}else{
+					if(goLeft==0||goRight==0)
+						drawTutorial();
+					localStorage.setItem("firstTime",0);
+					startGame=3;
+					score=score+1;
+					if(POP.android)	{
+						AndAud.playAudio("sounds/hit.mp3");
+					}else{
+						bounceAudio.play();
+					}
+				}
+				ball.y = floorY - ball.radius;
+				ball.vy *= -bounceFactor;
+			}
+			// The bounceFactor variable that we created decides the elasticity or how elastic the collision will be. If it's 1, then the collision will be perfectly elastic. If 0, then it will be inelastic.
+		}else{
+			if(goLeft==0||goRight==0)
+					drawTutorial();
+			drawScore();
+		}
+		
+		}
+		if((ball.y)>H){
+		//alert("die")
+			gameover();
+	//	timer = timer = setInterval(update, 1000/60);
+	}
+	}
+	
+	if(startGame==0){
+		shadow.fadeIn(0.1);
+		startBtn.fadeIn();
+	
+	}
+	
+	//	}
+}
+
+function drawTutorial(){
+	ctx.drawImage(imageTutorial, 25,H/2-130,W-50,60);
+}
+function drawScore(){
+		drawText(score,W/2,100);
+}
+var gameOver = 0;
+function gameover(){
+	if(score>highScore){
+		localStorage.setItem("highScore",score);
+		highScore=score;
+	}
+
+	if(gameOver==0){
+		if(POP.android)	{
+				AndAud.playAudio("sounds/failed.ogg");
+				AndAud.playAudio("sounds/gameover.ogg");
+			}else{
+				failedAudio.play();
+			gameOverAudio.play();
+		}
+		gameOver =1;
+	}
+		//clearInterval(timer);
+	//	restart();
+	shadow.fadeIn(0.4);
+	if(shadow.alpha>=0.4){
+			restartBtn.fadeIn();
+	}
+}
+
+function start(){
+	startGame=1;
+}
+function restart(){
+	for(var index=0;index<floors.length;index++){
+		floors[index].visible=1;
+		floors[index].y=floorY;
+		floors[index].drop=0;
+		floors[index].x=0;
+		floors[index].dropDelay=floorDelay;
+		floors[index].riseDelay=floorDelay;
+	}
+	ball.x = W/2;
+	ball.y = 100;
+	ball.vx= 0;
+	ball.vy= 1;
+	score=0;
+	shadow.alpha=0;
+	goLeft=0;
+	goRight=0;
+	
+		gameOver =0;
+}
+
+function validate(){
+	if(ball.y-ball.radius > floorY)
+		return 0;
+	var ballx1 = ball.x-ball.radius;
+	var ballx2 = ball.x+ball.radius;
+	var pass = 0;
+	for(var index=0;index<floors.length;index++){
+	var areaOnGround = 0;
+		if(floors[index].visible==1&&floors[index].y<=floorY+ball.radius){
+			var floorx1 = floors[index].x;
+			var floorx2 = floors[index].x+floorWidth;
+			if(floorx1<ballx1&&floorx2>ballx2){
+				pass = 1;
+			}else{
+				if(ballx1<=floorx2&&ballx2>=floorx2){
+					areaOnGround = areaOnGround+(ballx2-floorx2);
+				}
+				if(ballx1<=floorx1&&ballx2>=floorx1){
+					areaOnGround = areaOnGround+(floorx1-ballx1);
+				}
+				if(areaOnGround>0.4){
+					pass = 1;
+				}
+			}
+		}
+	}
+	return pass;
+}
+
+// Now, the animation time!
+// in setInterval, 1000/x depicts x fps! So, in this casse, we are aiming for 60fps for smoother animations.
+
+// This completes the tutorial here. Try experimenting with different values to get a better understanding.
+
+// Also, try playing with the x-component of velocity ;)
+
+</script>
+</body>
+</html>
+
